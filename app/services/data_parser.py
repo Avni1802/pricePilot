@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 logger = logging.getLogger(__name__)
 
 class ProductDataParser:
-    """Enhanced parser with better error handling"""
+    """Enhanced parser with better error handling and Amazon/eBay support"""
     
     def __init__(self):
         self.currency_codes = {
@@ -31,20 +31,20 @@ class ProductDataParser:
                 if source_name == "google_shopping":
                     products = self.parse_google_shopping(source_data, country)
                 elif source_name == "amazon":
-                    products = self.parse_amazon(source_data, country)
+                    products = self.parse_amazon_enhanced(source_data, country)
                 elif source_name == "google_general":
                     products = self.parse_google_general(source_data, country)
                 elif source_name == "ebay":
-                    products = self.parse_ebay(source_data, country)
+                    products = self.parse_ebay_enhanced(source_data, country)
                 else:
                     logger.warning(f"Unknown source: {source_name}")
                     continue
                 
-                logger.info(f"✅ Parsed {len(products)} products from {source_name}")
+                logger.info(f"Parsed {len(products)} products from {source_name}")
                 all_products.extend(products)
                 
             except Exception as e:
-                logger.error(f"❌ Error parsing {source_name}: {str(e)}")
+                logger.error(f"Error parsing {source_name}: {str(e)}")
                 continue
         
         # Remove duplicates based on similar product names and prices
@@ -85,37 +85,59 @@ class ProductDataParser:
         
         return products
     
-    def parse_amazon(self, data: Dict, country: str) -> List[Dict]:
-        """Parse Amazon results with multiple format support"""
+    def parse_amazon_enhanced(self, data: Dict, country: str) -> List[Dict]:
+        """Enhanced Amazon parser with multiple result formats"""
         products = []
         
-        # Try different result fields
-        results = data.get('organic_results', []) or data.get('products', [])
+        # Try different result fields that Amazon might use
+        results = (
+            data.get('organic_results', []) or 
+            data.get('products', []) or
+            data.get('search_results', [])
+        )
+        
+        logger.info(f"Amazon parser: Processing {len(results)} items")
         
         for item in results:
             try:
-                # Try multiple price fields
+                # Try multiple price fields Amazon might use
                 price_text = (
                     item.get('price', '') or 
                     item.get('price_string', '') or
                     item.get('price_upper', '') or
-                    item.get('price_lower', '')
+                    item.get('price_lower', '') or
+                    item.get('price_range', '') or
+                    str(item.get('price_symbol', '')) + str(item.get('price_value', ''))
                 )
                 
                 price_info = self.extract_price(str(price_text), country)
                 
                 if not price_info['price']:
+                    # Try extracting price from title or snippet
+                    title_text = item.get('title', '')
+                    snippet_text = item.get('snippet', '')
+                    combined_text = f"{title_text} {snippet_text}"
+                    price_info = self.extract_price(combined_text, country)
+                
+                if not price_info['price']:
                     continue
+                
+                # Get product title
+                title = (
+                    item.get('title', '') or 
+                    item.get('name', '') or
+                    item.get('product_name', '')
+                )
                 
                 product = {
                     "link": item.get('link', ''),
                     "price": price_info['price'],
                     "currency": price_info['currency'],
-                    "productName": item.get('title', ''),
+                    "productName": self.clean_product_name(title),
                     "website": "Amazon",
-                    "rating": str(item.get('rating', '')),
-                    "availability": "Available",
-                    "image_url": item.get('image', '')
+                    "rating": str(item.get('rating', '') or item.get('reviews', {}).get('rating', '')),
+                    "availability": item.get('availability', 'Available'),
+                    "image_url": item.get('image', '') or item.get('thumbnail', '')
                 }
                 
                 if self.is_valid_product(product):
@@ -125,6 +147,7 @@ class ProductDataParser:
                 logger.debug(f"Skipping Amazon item: {str(e)}")
                 continue
         
+        logger.info(f"Amazon parser: Successfully parsed {len(products)} products")
         return products
     
     def parse_google_general(self, data: Dict, country: str) -> List[Dict]:
@@ -167,27 +190,63 @@ class ProductDataParser:
         
         return products
     
-    def parse_ebay(self, data: Dict, country: str) -> List[Dict]:
-        """Parse eBay results"""
+    def parse_ebay_enhanced(self, data: Dict, country: str) -> List[Dict]:
+        """Enhanced eBay parser with multiple result formats"""
         products = []
-        organic_results = data.get('organic_results', [])
         
-        for item in organic_results:
+        # Try different result fields that eBay might use
+        results = (
+            data.get('organic_results', []) or
+            data.get('search_results', []) or
+            data.get('items', [])
+        )
+        
+        logger.info(f"eBay parser: Processing {len(results)} items")
+        
+        for item in results:
             try:
-                price_info = self.extract_price(item.get('price', ''), country)
+                # Try multiple price fields eBay might use
+                price_text = (
+                    item.get('price', '') or
+                    item.get('current_price', '') or
+                    item.get('buy_it_now_price', '') or
+                    item.get('starting_bid', '') or
+                    str(item.get('price_value', ''))
+                )
+                
+                price_info = self.extract_price(str(price_text), country)
+                
+                if not price_info['price']:
+                    # Try extracting from title
+                    title_text = item.get('title', '')
+                    price_info = self.extract_price(title_text, country)
                 
                 if not price_info['price']:
                     continue
+                
+                # Get product title
+                title = (
+                    item.get('title', '') or
+                    item.get('name', '') or
+                    item.get('listing_title', '')
+                )
+                
+                # Determine availability/auction type
+                availability = "Buy Now"
+                if item.get('auction', False) or 'bid' in str(item.get('price', '')).lower():
+                    availability = "Auction"
+                elif item.get('buy_it_now', False):
+                    availability = "Buy It Now"
                 
                 product = {
                     "link": item.get('link', ''),
                     "price": price_info['price'],
                     "currency": price_info['currency'],
-                    "productName": item.get('title', ''),
+                    "productName": self.clean_product_name(title),
                     "website": "eBay",
-                    "rating": "",
-                    "availability": "Auction/Buy Now",
-                    "image_url": item.get('thumbnail', '')
+                    "rating": str(item.get('rating', '') or item.get('seller_rating', '')),
+                    "availability": availability,
+                    "image_url": item.get('thumbnail', '') or item.get('image', '')
                 }
                 
                 if self.is_valid_product(product):
@@ -197,6 +256,7 @@ class ProductDataParser:
                 logger.debug(f"Skipping eBay item: {str(e)}")
                 continue
         
+        logger.info(f"eBay parser: Successfully parsed {len(products)} products")
         return products
     
     def extract_price(self, price_text: str, country: str) -> Dict[str, str]:
@@ -210,16 +270,19 @@ class ProductDataParser:
         # Remove common noise
         clean_text = re.sub(r'(from|starting|as low as|up to|save|off|free shipping)', '', price_text.lower())
         
-        # Enhanced price patterns
+        # Enhanced price patterns - more comprehensive
         price_patterns = [
             r'[\$£€¥₹]\s*([0-9,]+\.?[0-9]*)',  # Symbol first: $999.99
             r'([0-9,]+\.?[0-9]*)\s*[\$£€¥₹]',  # Symbol last: 999.99$
             r'([0-9,]+\.?[0-9]*)\s*(USD|EUR|GBP|INR|JPY|CAD|AUD|BRL|MXN)',  # With currency code
+            r'Price:\s*[\$£€¥₹]?\s*([0-9,]+\.?[0-9]*)',  # "Price: $999"
+            r'([0-9,]+\.?[0-9]*)\s*dollars?',  # "999 dollars"
+            r'([0-9,]+\.?[0-9]*)\s*rupees?',   # "999 rupees"
             r'([0-9,]+\.?[0-9]*)',  # Just numbers (last resort)
         ]
         
         for pattern in price_patterns:
-            match = re.search(pattern, clean_text)
+            match = re.search(pattern, clean_text, re.IGNORECASE)
             if match:
                 price_num = match.group(1).replace(',', '')
                 
@@ -244,6 +307,14 @@ class ProductDataParser:
                     currency = 'INR'
                 elif '¥' in price_text:
                     currency = 'JPY'
+                elif 'USD' in price_text.upper():
+                    currency = 'USD'
+                elif 'EUR' in price_text.upper():
+                    currency = 'EUR'
+                elif 'GBP' in price_text.upper():
+                    currency = 'GBP'
+                elif 'INR' in price_text.upper():
+                    currency = 'INR'
                 
                 return {"price": price_num, "currency": currency}
         
@@ -282,10 +353,10 @@ class ProductDataParser:
         
         # Remove common noise patterns
         noise_patterns = [
-            r'\s*-\s*(Buy Online|Shop Now|Best Price|Free Shipping).*$',
-            r'\s*\|\s*.*$',  # Remove everything after |
-            r'\s*-\s*Amazon.*$',
-            r'\s*-\s*eBay.*$'
+            r'\s*-\s*(Buy Online|Shop Now|Best Price|Free Shipping).*',
+            r'\s*\|\s*.*',  # Remove everything after |
+            r'\s*-\s*Amazon.*',
+            r'\s*-\s*eBay.*'
         ]
         
         for pattern in noise_patterns:

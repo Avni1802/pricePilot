@@ -71,10 +71,10 @@ class SerpAPIClient:
             ("google_shopping", self.search_google_shopping(query, country))
         )
 
-        # 2. Amazon (only if domain exists and simplified)
+        # 2. Amazon (only if domain exists and with correct parameters)
         if country in self.amazon_domains:
             search_tasks.append(
-                ("amazon", self.search_amazon_simple(query, country))
+                ("amazon", self.search_amazon_fixed(query, country))
             )
 
         # 3. Google general search (simplified)
@@ -82,10 +82,10 @@ class SerpAPIClient:
             ("google_general", self.search_google_simple(query, country))
         )
 
-        # 4. eBay (simplified)
+        # 4. eBay (with correct parameters)
         if country in self.ebay_domains:
             search_tasks.append(
-                ("ebay", self.search_ebay_simple(query, country))
+                ("ebay", self.search_ebay_fixed(query, country))
             )
 
         # Execute searches with individual error handling
@@ -96,12 +96,12 @@ class SerpAPIClient:
                 logger.info(f"Executing {search_name} search...")
                 result = await asyncio.wait_for(search_future, timeout=15.0)
                 results[search_name] = result
-                logger.info(f"✅ {search_name} search completed")
+                logger.info(f"{search_name} search completed")
             except asyncio.TimeoutError:
-                logger.error(f"⏰ {search_name} search timed out")
+                logger.error(f"{search_name} search timed out")
                 results[search_name] = {"error": "Search timed out"}
             except Exception as e:
-                logger.error(f"❌ {search_name} search failed: {str(e)}")
+                logger.error(f"{search_name} search failed: {str(e)}")
                 results[search_name] = {"error": str(e)}
 
         logger.info(f"Search completed. Working sources: {[k for k, v in results.items() if 'error' not in v]}")
@@ -138,16 +138,16 @@ class SerpAPIClient:
             logger.error(f"Google Shopping search failed: {str(e)}")
             return {"error": str(e)}
 
-    async def search_amazon_simple(self, query: str, country: str) -> Dict:
-        """Simplified Amazon search"""
+    async def search_amazon_fixed(self, query: str, country: str) -> Dict:
+        """Fixed Amazon search with correct parameters"""
         try:
             domain = self.amazon_domains.get(country, "amazon.com")
 
-            # Simplified parameters
+            # FIXED: Use 'k' parameter for Amazon search (not 'q')
             search_params = {
                 "engine": "amazon",
                 "amazon_domain": domain,
-                "q": query,
+                "k": query,  # FIXED: Amazon uses 'k' parameter, not 'q'
                 "api_key": self.api_key
             }
 
@@ -210,16 +210,16 @@ class SerpAPIClient:
             logger.error(f"Google general search failed: {str(e)}")
             return {"error": str(e)}
 
-    async def search_ebay_simple(self, query: str, country: str) -> Dict:
-        """Simplified eBay search"""
+    async def search_ebay_fixed(self, query: str, country: str) -> Dict:
+        """Fixed eBay search with correct parameters"""
         try:
             domain = self.ebay_domains.get(country, "ebay.com")
 
-            # Simplified parameters
+            # FIXED: Use '_nkw' parameter for eBay search (not 'q')
             search_params = {
                 "engine": "ebay",
                 "ebay_domain": domain,
-                "q": query,
+                "_nkw": query,  # FIXED: eBay uses '_nkw' parameter, not 'q'
                 "api_key": self.api_key
             }
 

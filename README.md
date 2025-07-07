@@ -72,26 +72,30 @@ Simple HTML + Vanilla JS (if time permits)
     -d '{"country": "US", "query": "iPhone 16 Pro"}'
   Returns: Raw product data from multiple sources
 
-Phase 3: AI-Powered Enhancement (Hour 3)
-Goal: Accurate product matching and data extraction
+# Phase 3: AI-Powered Enhancement (Hour 3)
 
-Tasks:
+  # Goal:
+  - Accurate product matching and data extraction
 
-Integrate OpenAI GPT-4 for product validation
-Implement intelligent price/currency extraction
-Add product name normalization
-Filter irrelevant/duplicate results
-Implement confidence scoring
-Deliverables:
+  # Tasks:
 
-AI-validated product matches
-Clean, structured output format
-Duplicate removal logic
-Success Criteria:
+  1. Integrate OpenAI GPT-4 for product validation
+  2. Implement intelligent price/currency extraction
+  3. Add product name normalization
+  4. Filter irrelevant/duplicate results
+  5. Implement confidence scoring
+  
+  # Deliverables:
 
-Only relevant products returned
-Accurate price extraction
-Proper currency detection
+  - AI-validated product matches
+  - Clean, structured output format
+  - Duplicate removal logic
+  
+  # Success Criteria:
+
+  - Only relevant products returned
+  - Accurate price extraction
+  - Proper currency detection
 
 Phase 4: Global Coverage & Optimization (Hour 4)
 Goal: Country-specific optimization and performance
