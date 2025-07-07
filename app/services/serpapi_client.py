@@ -10,15 +10,16 @@ import logging
 load_dotenv()
 logger = logging.getLogger(__name__)
 
+
 class SerpAPIClient:
     """Enhanced client for worldwide product search via SerpAPI"""
-    
+
     def __init__(self):
         self.api_key = os.getenv("SERPAPI_KEY")
         if not self.api_key:
             raise ValueError("SERPAPI_KEY environment variable is required")
-        
-        # Worldwide domain mapping for comprehensive coverage
+
+        # Simplified and working domain mapping
         self.amazon_domains = {
             "US": "amazon.com",
             "IN": "amazon.in", 
@@ -27,247 +28,222 @@ class SerpAPIClient:
             "AU": "amazon.com.au",
             "DE": "amazon.de",
             "FR": "amazon.fr",
-            "JP": "amazon.co.jp",
-            "BR": "amazon.com.br",
-            "MX": "amazon.com.mx",
             "IT": "amazon.it",
-            "ES": "amazon.es",
-            "NL": "amazon.nl"
+            "ES": "amazon.es"
         }
-        
-        # Country-specific popular e-commerce sites
+
+        # Simplified local sites for Google search
         self.local_sites = {
-            "US": ["walmart", "bestbuy", "target", "newegg", "bhphotovideo"],
-            "IN": ["flipkart", "snapdeal", "myntra", "nykaa", "bigbasket"],
-            "UK": ["argos", "currys", "johnlewis", "very", "ao"],
-            "CA": ["canadiantire", "bestbuy.ca", "thebay"],
-            "AU": ["jbhifi", "harveynorman", "bigw", "kmart"],
-            "DE": ["otto", "zalando", "mediamarkt", "saturn"],
-            "FR": ["fnac", "darty", "cdiscount", "laredoute"],
-            "JP": ["rakuten", "yodobashi", "bic-camera"],
-            "BR": ["mercadolivre", "americanas", "submarino"],
-            "MX": ["mercadolibre", "liverpool", "palacio"],
-            "IT": ["eprice", "unieuro", "mediaworld"],
-            "ES": ["elcorteingles", "pccomponentes", "mediamarkt"],
-            "NL": ["bol", "coolblue", "mediamarkt"]
+            "US": ["walmart.com", "bestbuy.com", "target.com"],
+            "IN": ["flipkart.com", "snapdeal.com", "myntra.com"],
+            "UK": ["argos.co.uk", "currys.co.uk", "very.co.uk"],
+            "CA": ["canadiantire.ca", "bestbuy.ca"],
+            "AU": ["jbhifi.com.au", "harveynorman.com.au"],
+            "DE": ["otto.de", "mediamarkt.de"],
+            "FR": ["fnac.com", "darty.com"],
+            "IT": ["eprice.it", "unieuro.it"],
+            "ES": ["elcorteingles.es", "mediamarkt.es"]
         }
-    
+
+        # eBay domain mapping (simplified)
+        self.ebay_domains = {
+            "US": "ebay.com",
+            "UK": "ebay.co.uk", 
+            "CA": "ebay.ca",
+            "AU": "ebay.com.au",
+            "DE": "ebay.de",
+            "FR": "ebay.fr",
+            "IT": "ebay.it",
+            "ES": "ebay.es"
+        }
+
     async def search_all_sources(self, query: str, country: str) -> Dict[str, Dict]:
         """
-        Search all available sources for a product
-        
-        What this does: Orchestrates searches across multiple platforms simultaneously
-        Why: Maximizes product coverage and price comparison options
-        Returns: Dictionary with results from each source
+        Search all available sources for a product with improved error handling
         """
         logger.info(f"Starting comprehensive search for '{query}' in {country}")
-        
+
         # Create search tasks for concurrent execution
         search_tasks = []
-        
-        # 1. Google Shopping (primary source - best structured data)
+
+        # 1. Google Shopping (primary source - most reliable)
         search_tasks.append(
             ("google_shopping", self.search_google_shopping(query, country))
         )
-        
-        # 2. Amazon (if available in country)
+
+        # 2. Amazon (only if domain exists and simplified)
         if country in self.amazon_domains:
             search_tasks.append(
-                ("amazon", self.search_amazon(query, country))
+                ("amazon", self.search_amazon_simple(query, country))
             )
-        
-        # 3. Google general search for local sites
+
+        # 3. Google general search (simplified)
         search_tasks.append(
-            ("google_general", self.search_google_with_local_sites(query, country))
+            ("google_general", self.search_google_simple(query, country))
         )
-        
-        # 4. eBay (global marketplace)
-        search_tasks.append(
-            ("ebay", self.search_ebay(query, country))
-        )
-        
-        # Execute all searches concurrently
-        logger.info(f"Executing {len(search_tasks)} concurrent searches...")
-        
+
+        # 4. eBay (simplified)
+        if country in self.ebay_domains:
+            search_tasks.append(
+                ("ebay", self.search_ebay_simple(query, country))
+            )
+
+        # Execute searches with individual error handling
         results = {}
-        search_futures = [task[1] for task in search_tasks]
-        search_names = [task[0] for task in search_tasks]
-        
-        try:
-            # Wait for all searches to complete (with timeout)
-            completed_results = await asyncio.wait_for(
-                asyncio.gather(*search_futures, return_exceptions=True),
-                timeout=30.0  # 30 second timeout for all searches
-            )
-            
-            # Process results
-            for name, result in zip(search_names, completed_results):
-                if isinstance(result, Exception):
-                    logger.error(f"{name} search failed: {str(result)}")
-                    results[name] = {"error": str(result)}
-                else:
-                    results[name] = result
-                    logger.info(f"{name} search completed successfully")
-            
-        except asyncio.TimeoutError:
-            logger.error("Search timeout - some sources may be slow")
-            results["timeout_error"] = "Some searches timed out"
-        
-        logger.info(f"Comprehensive search completed. Sources: {list(results.keys())}")
+
+        for search_name, search_future in search_tasks:
+            try:
+                logger.info(f"Executing {search_name} search...")
+                result = await asyncio.wait_for(search_future, timeout=15.0)
+                results[search_name] = result
+                logger.info(f"✅ {search_name} search completed")
+            except asyncio.TimeoutError:
+                logger.error(f"⏰ {search_name} search timed out")
+                results[search_name] = {"error": "Search timed out"}
+            except Exception as e:
+                logger.error(f"❌ {search_name} search failed: {str(e)}")
+                results[search_name] = {"error": str(e)}
+
+        logger.info(f"Search completed. Working sources: {[k for k, v in results.items() if 'error' not in v]}")
         return results
-    
+
     async def search_google_shopping(self, query: str, country: str) -> Dict:
-        """Enhanced Google Shopping search with better parameters"""
+        """Google Shopping search - most reliable"""
         try:
             search_params = {
                 "engine": "google_shopping",
                 "q": query,
-                "gl": country.lower(),  # Country code
-                "hl": "en",  # Language
+                "gl": country.lower(),
+                "hl": "en",
                 "api_key": self.api_key,
-                "num": 30,  # More results for better coverage
-                "no_cache": True, # Get fresh results
-                "sort_by": "price_low_to_high"  # Price sorting
+                "num": 20
             }
-            
-            logger.info(f"Starting Google Shopping search: {query} in {country}")
-            
-            # SerpAPI is synchronous, so we run it in a thread pool
+
+            logger.info(f"Google Shopping: {query} in {country}")
+
             loop = asyncio.get_event_loop()
             search = GoogleSearch(search_params)
             result = await loop.run_in_executor(None, search.get_dict)
-            
-            if "error" in result:
-                logger.error(f"[SERP API] Google Shopping error: {result['error']}")
-                return {"error": result["error"]}
-            
 
-            # Extract and count results
+            if "error" in result:
+                logger.error(f"Google Shopping API error: {result['error']}")
+                return {"error": result["error"]}
+
             shopping_results = result.get('shopping_results', [])
             logger.info(f"Google Shopping: Found {len(shopping_results)} products")
-            
+
             return result
-            
+
         except Exception as e:
-            logger.error(f"[SERP API] Google Shopping search failed: {str(e)}")
+            logger.error(f"Google Shopping search failed: {str(e)}")
             return {"error": str(e)}
-    
-    async def search_amazon(self, query: str, country: str) -> Dict:
-        """Enhanced Amazon search via SerpAPI"""
+
+    async def search_amazon_simple(self, query: str, country: str) -> Dict:
+        """Simplified Amazon search"""
         try:
             domain = self.amazon_domains.get(country, "amazon.com")
-            
+
+            # Simplified parameters
             search_params = {
                 "engine": "amazon",
                 "amazon_domain": domain,
                 "q": query,
-                "api_key": self.api_key,
-                "no_cache": True
+                "api_key": self.api_key
             }
-            
-            logger.info(f"Starting Amazon search: {query} on {domain}")
-            
+
+            logger.info(f"Amazon: {query} on {domain}")
+
             loop = asyncio.get_event_loop()
             search = GoogleSearch(search_params)
             result = await loop.run_in_executor(None, search.get_dict)
-            
+
             if "error" in result:
-                logger.error(f"[SERP API] Amazon search error: {result['error']}")
+                logger.error(f"Amazon API error: {result['error']}")
                 return {"error": result["error"]}
-            
-            # Extract and count results
+
+            # Check for results in different possible fields
             organic_results = result.get('organic_results', [])
+            products = result.get('products', [])  # Sometimes Amazon returns 'products'
+
+            if not organic_results and products:
+                result['organic_results'] = products
+                organic_results = products
+
             logger.info(f"Amazon: Found {len(organic_results)} products")
-            
             return result
-            
+
         except Exception as e:
             logger.error(f"Amazon search failed: {str(e)}")
             return {"error": str(e)}
-    
-    async def search_google_with_local_sites(self, query: str, country: str) -> Dict:
-        """Search Google with focus on local e-commerce sites"""
+
+    async def search_google_simple(self, query: str, country: str) -> Dict:
+        """Simplified Google general search"""
         try:
-            # Get local sites for the country
-            local_sites = self.local_sites.get(country, [])
-            sites_query = " OR ".join([f"site:{site}" for site in local_sites[:5]])  # Limit to top 5
-            
-            # Enhanced query to find local e-commerce results
-            enhanced_query = f"{query} buy online price ({sites_query})"
-            
+            # Much simpler query - just add "buy" and "price"
+            enhanced_query = f"{query} buy price online"
+
             search_params = {
                 "engine": "google",
                 "q": enhanced_query,
                 "gl": country.lower(),
                 "hl": "en",
                 "api_key": self.api_key,
-                "num": 20,
-                "no_cache": True
+                "num": 10  # Fewer results to avoid issues
             }
-            
-            logger.info(f"Google local sites search: {enhanced_query}")
-            
+
+            logger.info(f"Google general: {enhanced_query}")
+
             loop = asyncio.get_event_loop()
             search = GoogleSearch(search_params)
             result = await loop.run_in_executor(None, search.get_dict)
-            
+
             if "error" in result:
-                logger.error(f"Google local search error: {result['error']}")
+                logger.error(f"Google general API error: {result['error']}")
                 return {"error": result["error"]}
-            
-            logger.info(f"Google general search completed: {len(result.get('organic_results', []))} results")
+
+            organic_results = result.get('organic_results', [])
+            logger.info(f"Google general: Found {len(organic_results)} results")
+
             return result
-            
+
         except Exception as e:
-            logger.error(f"Google local sites search failed: {str(e)}")
+            logger.error(f"Google general search failed: {str(e)}")
             return {"error": str(e)}
-    
-    async def search_ebay(self, query: str, country: str) -> Dict:
-        """Search eBay for additional product options"""
+
+    async def search_ebay_simple(self, query: str, country: str) -> Dict:
+        """Simplified eBay search"""
         try:
-            # eBay domain mapping
-            ebay_domains = {
-                "US": "ebay.com",
-                "UK": "ebay.co.uk", 
-                "CA": "ebay.ca",
-                "AU": "ebay.com.au",
-                "DE": "ebay.de",
-                "FR": "ebay.fr",
-                "IT": "ebay.it",
-                "ES": "ebay.es"
-            }
-            
-            domain = ebay_domains.get(country, "ebay.com")
-            
+            domain = self.ebay_domains.get(country, "ebay.com")
+
+            # Simplified parameters
             search_params = {
                 "engine": "ebay",
                 "ebay_domain": domain,
                 "q": query,
-                "api_key": self.api_key,
-                "no_cache": True
+                "api_key": self.api_key
             }
-            
-            logger.info(f"eBay search: {query} on {domain}")
-            
+
+            logger.info(f"eBay: {query} on {domain}")
+
             loop = asyncio.get_event_loop()
             search = GoogleSearch(search_params)
             result = await loop.run_in_executor(None, search.get_dict)
-            
+
             if "error" in result:
-                logger.error(f"eBay search error: {result['error']}")
+                logger.error(f"eBay API error: {result['error']}")
                 return {"error": result["error"]}
-            
+
             organic_results = result.get('organic_results', [])
             logger.info(f"eBay: Found {len(organic_results)} products")
-            
+
             return result
-            
+
         except Exception as e:
             logger.error(f"eBay search failed: {str(e)}")
             return {"error": str(e)}
-    
+
     async def test_connection(self) -> Dict:
-        """Enhanced connection test"""
+        """Test SerpAPI connection"""
         try:
             search_params = {
                 "engine": "google",
@@ -275,30 +251,23 @@ class SerpAPIClient:
                 "api_key": self.api_key,
                 "num": 1
             }
-            
+
             loop = asyncio.get_event_loop()
             search = GoogleSearch(search_params)
             result = await loop.run_in_executor(None, search.get_dict)
-            
+
             if "error" in result:
                 return {
                     "connected": False,
                     "error": result["error"],
                     "message": "SerpAPI connection failed"
                 }
-            
-            account_info = result.get("search_metadata", {})
-            
+
             return {
                 "connected": True,
-                "message": "SerpAPI connection successful",
-                "account_info": {
-                    "id": account_info.get("id"),
-                    "status": account_info.get("status"),
-                    "total_time_taken": account_info.get("total_time_taken")
-                }
+                "message": "SerpAPI connection successful"
             }
-            
+
         except Exception as e:
             logger.error(f"SerpAPI connection test failed: {str(e)}")
             return {

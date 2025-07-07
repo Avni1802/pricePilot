@@ -6,23 +6,9 @@ from urllib.parse import urlparse
 logger = logging.getLogger(__name__)
 
 class ProductDataParser:
-    """
-    Parses raw search results into structured product data
-    
-    What this does: Converts messy API responses into clean ProductResult objects
-    Why: Different sources have different data formats - we need consistency
-    """
+    """Enhanced parser with better error handling"""
     
     def __init__(self):
-        # Currency symbols for price extraction
-        self.currency_symbols = {
-            'US': '$', 'CA': 'C$', 'AU': 'A$',
-            'UK': '£', 'IN': '₹', 'JP': '¥',
-            'DE': '€', 'FR': '€', 'IT': '€', 'ES': '€', 'NL': '€',
-            'BR': 'R$', 'MX': '$'
-        }
-        
-        # Currency codes
         self.currency_codes = {
             'US': 'USD', 'CA': 'CAD', 'AU': 'AUD',
             'UK': 'GBP', 'IN': 'INR', 'JP': 'JPY',
@@ -31,20 +17,14 @@ class ProductDataParser:
         }
     
     def parse_all_results(self, raw_results: Dict[str, Dict], country: str) -> List[Dict]:
-        """
-        Parse results from all sources into unified product list
-        
-        What this does: Takes raw API responses and converts them to our standard format
-        Why: Each source (Google Shopping, Amazon, etc.) has different response formats
-        Returns: List of dictionaries matching our ProductResult format
-        """
+        """Parse results from all sources with better error handling"""
         all_products = []
         
-        logger.info(f"Starting to parse results from {len(raw_results)} sources")
+        logger.info(f"Parsing results from {len(raw_results)} sources")
         
         for source_name, source_data in raw_results.items():
             if "error" in source_data:
-                logger.warning(f"Skipping {source_name} due to error: {source_data['error']}")
+                logger.warning(f"Skipping {source_name}: {source_data['error']}")
                 continue
             
             try:
@@ -60,15 +40,18 @@ class ProductDataParser:
                     logger.warning(f"Unknown source: {source_name}")
                     continue
                 
-                logger.info(f"Parsed {len(products)} products from {source_name}")
+                logger.info(f"✅ Parsed {len(products)} products from {source_name}")
                 all_products.extend(products)
                 
             except Exception as e:
-                logger.error(f"Error parsing {source_name}: {str(e)}")
+                logger.error(f"❌ Error parsing {source_name}: {str(e)}")
                 continue
         
-        logger.info(f"Total products parsed: {len(all_products)}")
-        return all_products
+        # Remove duplicates based on similar product names and prices
+        unique_products = self.remove_duplicates(all_products)
+        logger.info(f"📦 Total unique products: {len(unique_products)}")
+        
+        return unique_products
     
     def parse_google_shopping(self, data: Dict, country: str) -> List[Dict]:
         """Parse Google Shopping results"""
@@ -77,10 +60,8 @@ class ProductDataParser:
         
         for item in shopping_results:
             try:
-                # Extract price information
                 price_info = self.extract_price(item.get('price', ''), country)
                 
-                # Skip if no valid price found
                 if not price_info['price']:
                     continue
                 
@@ -90,36 +71,39 @@ class ProductDataParser:
                     "currency": price_info['currency'],
                     "productName": item.get('title', ''),
                     "website": self.extract_website_name(item.get('source', '')),
-                    "rating": item.get('rating'),
-                    "availability": "In Stock" if item.get('delivery') else None,
-                    "image_url": item.get('thumbnail')
+                    "rating": str(item.get('rating', '')),
+                    "availability": "In Stock",
+                    "image_url": item.get('thumbnail', '')
                 }
                 
-                # Only add if we have essential information
-                if product['link'] and product['productName'] and product['price']:
+                if self.is_valid_product(product):
                     products.append(product)
                     
             except Exception as e:
-                logger.error(f"Error parsing Google Shopping item: {str(e)}")
+                logger.debug(f"Skipping Google Shopping item: {str(e)}")
                 continue
         
         return products
     
     def parse_amazon(self, data: Dict, country: str) -> List[Dict]:
-        """Parse Amazon results"""
+        """Parse Amazon results with multiple format support"""
         products = []
-        organic_results = data.get('organic_results', [])
         
-        for item in organic_results:
+        # Try different result fields
+        results = data.get('organic_results', []) or data.get('products', [])
+        
+        for item in results:
             try:
-                # Extract price from various possible fields
-                price_text = (item.get('price', '') or 
-                             item.get('price_string', '') or
-                             item.get('price_upper', ''))
+                # Try multiple price fields
+                price_text = (
+                    item.get('price', '') or 
+                    item.get('price_string', '') or
+                    item.get('price_upper', '') or
+                    item.get('price_lower', '')
+                )
                 
-                price_info = self.extract_price(price_text, country)
+                price_info = self.extract_price(str(price_text), country)
                 
-                # Skip if no valid price
                 if not price_info['price']:
                     continue
                 
@@ -129,36 +113,34 @@ class ProductDataParser:
                     "currency": price_info['currency'],
                     "productName": item.get('title', ''),
                     "website": "Amazon",
-                    "rating": item.get('rating'),
-                    "availability": "In Stock" if not item.get('is_prime_eligible') == False else "Check Availability",
-                    "image_url": item.get('image')
+                    "rating": str(item.get('rating', '')),
+                    "availability": "Available",
+                    "image_url": item.get('image', '')
                 }
                 
-                if product['link'] and product['productName'] and product['price']:
+                if self.is_valid_product(product):
                     products.append(product)
                     
             except Exception as e:
-                logger.error(f"Error parsing Amazon item: {str(e)}")
+                logger.debug(f"Skipping Amazon item: {str(e)}")
                 continue
         
         return products
     
     def parse_google_general(self, data: Dict, country: str) -> List[Dict]:
-        """Parse Google general search results for e-commerce sites"""
+        """Parse Google general search results"""
         products = []
         organic_results = data.get('organic_results', [])
         
         for item in organic_results:
             try:
-                # Look for price in title or snippet
                 title = item.get('title', '')
                 snippet = item.get('snippet', '')
                 
-                # Try to extract price from title or snippet
+                # Look for price in title or snippet
                 price_text = f"{title} {snippet}"
                 price_info = self.extract_price(price_text, country)
                 
-                # Skip if no price found
                 if not price_info['price']:
                     continue
                 
@@ -171,16 +153,16 @@ class ProductDataParser:
                     "currency": price_info['currency'],
                     "productName": self.clean_product_name(title),
                     "website": website_name,
-                    "rating": None,
+                    "rating": "",
                     "availability": "Check Website",
-                    "image_url": None
+                    "image_url": ""
                 }
                 
-                if product['link'] and product['productName'] and product['price']:
+                if self.is_valid_product(product):
                     products.append(product)
                     
             except Exception as e:
-                logger.error(f"Error parsing Google general item: {str(e)}")
+                logger.debug(f"Skipping Google general item: {str(e)}")
                 continue
         
         return products
@@ -203,52 +185,55 @@ class ProductDataParser:
                     "currency": price_info['currency'],
                     "productName": item.get('title', ''),
                     "website": "eBay",
-                    "rating": None,
+                    "rating": "",
                     "availability": "Auction/Buy Now",
-                    "image_url": item.get('thumbnail')
+                    "image_url": item.get('thumbnail', '')
                 }
                 
-                if product['link'] and product['productName'] and product['price']:
+                if self.is_valid_product(product):
                     products.append(product)
                     
             except Exception as e:
-                logger.error(f"Error parsing eBay item: {str(e)}")
+                logger.debug(f"Skipping eBay item: {str(e)}")
                 continue
         
         return products
     
     def extract_price(self, price_text: str, country: str) -> Dict[str, str]:
-        """
-        Extract clean price and currency from text
-        
-        What this does: Finds price numbers in messy text and determines currency
-        Why: Prices come in many formats: "$999", "999.99 USD", "₹75,000"
-        Returns: {"price": "999.99", "currency": "USD"}
-        """
+        """Enhanced price extraction with better patterns"""
         if not price_text:
             return {"price": "", "currency": ""}
         
-        # Remove common non-price text
-        clean_text = re.sub(r'(from|starting|as low as|up to|save|off)', '', price_text.lower())
+        # Convert to string and clean
+        price_text = str(price_text).strip()
         
-        # Price patterns for different formats
+        # Remove common noise
+        clean_text = re.sub(r'(from|starting|as low as|up to|save|off|free shipping)', '', price_text.lower())
+        
+        # Enhanced price patterns
         price_patterns = [
             r'[\$£€¥₹]\s*([0-9,]+\.?[0-9]*)',  # Symbol first: $999.99
             r'([0-9,]+\.?[0-9]*)\s*[\$£€¥₹]',  # Symbol last: 999.99$
             r'([0-9,]+\.?[0-9]*)\s*(USD|EUR|GBP|INR|JPY|CAD|AUD|BRL|MXN)',  # With currency code
-            r'([0-9,]+\.?[0-9]*)',  # Just numbers
+            r'([0-9,]+\.?[0-9]*)',  # Just numbers (last resort)
         ]
         
         for pattern in price_patterns:
             match = re.search(pattern, clean_text)
             if match:
-                # Extract the numeric part
                 price_num = match.group(1).replace(',', '')
+                
+                # Skip if price is too small (likely not a real price)
+                try:
+                    if float(price_num) < 1:
+                        continue
+                except ValueError:
+                    continue
                 
                 # Determine currency
                 currency = self.currency_codes.get(country, 'USD')
                 
-                # Check if currency symbol/code was in the text
+                # Override currency if symbol/code found in text
                 if '$' in price_text:
                     currency = 'USD' if country == 'US' else self.currency_codes.get(country, 'USD')
                 elif '£' in price_text:
@@ -259,11 +244,6 @@ class ProductDataParser:
                     currency = 'INR'
                 elif '¥' in price_text:
                     currency = 'JPY'
-                elif any(code in price_text.upper() for code in ['USD', 'EUR', 'GBP', 'INR', 'JPY', 'CAD', 'AUD']):
-                    for code in ['USD', 'EUR', 'GBP', 'INR', 'JPY', 'CAD', 'AUD', 'BRL', 'MXN']:
-                        if code in price_text.upper():
-                            currency = code
-                            break
                 
                 return {"price": price_num, "currency": currency}
         
@@ -300,7 +280,7 @@ class ProductDataParser:
         # Remove excessive whitespace
         name = re.sub(r'\s+', ' ', name.strip())
         
-        # Remove common noise words at the end
+        # Remove common noise patterns
         noise_patterns = [
             r'\s*-\s*(Buy Online|Shop Now|Best Price|Free Shipping).*$',
             r'\s*\|\s*.*$',  # Remove everything after |
@@ -312,3 +292,33 @@ class ProductDataParser:
             name = re.sub(pattern, '', name, flags=re.IGNORECASE)
         
         return name.strip()
+    
+    def is_valid_product(self, product: Dict) -> bool:
+        """Validate if product has minimum required information"""
+        return (
+            product.get('link') and 
+            product.get('productName') and 
+            product.get('price') and
+            len(product.get('productName', '')) > 3 and
+            product.get('link').startswith('http')
+        )
+    
+    def remove_duplicates(self, products: List[Dict]) -> List[Dict]:
+        """Remove duplicate products based on name similarity and price"""
+        if not products:
+            return []
+        
+        unique_products = []
+        seen_combinations = set()
+        
+        for product in products:
+            # Create a key based on cleaned name and price
+            name_key = re.sub(r'[^a-zA-Z0-9]', '', product.get('productName', '').lower())[:20]
+            price_key = product.get('price', '')
+            combination_key = f"{name_key}_{price_key}"
+            
+            if combination_key not in seen_combinations:
+                seen_combinations.add(combination_key)
+                unique_products.append(product)
+        
+        return unique_products
