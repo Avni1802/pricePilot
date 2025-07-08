@@ -7,7 +7,7 @@ Tech Stack & Phase-Wise Implementation Plan
 # Backend Core
 Python 3.11 + FastAPI (rapid API development)
 SerpAPI (primary data source - Google Shopping, Amazon, etc.)
-OpenAI GPT-4 (product validation & data enhancement)
+OpenAI GPT-4 (product validation & data enhancemenxt)
 httpx (async HTTP client for API calls)
 Pydantic (data validation & serialization)
 Deployment & Infrastructure
@@ -21,10 +21,10 @@ Simple HTML + Vanilla JS (if time permits)
 
 # Phase 1: Foundation Setup (Hour 1)
 
-  # Goal:
+  ## Goal:
   - Working API skeleton with SerpAPI integration
 
-  # Tasks:
+  ## Tasks:
 
   - Create project structure
   - Set up FastAPI with basic endpoints
@@ -33,14 +33,14 @@ Simple HTML + Vanilla JS (if time permits)
   - Test basic SerpAPI call
   - Set up Docker configuration
 
-  # Deliverables:
+  ## Deliverables:
 
   1. Working /health endpoint
   2. Basic /search endpoint structure
   3. SerpAPI connection verified
   4. Docker setup complete
 
-  # Success Criteria:
+  ## Success Criteria:
 
   curl http://localhost:8000/health
   Returns: {"status": "ok"}
@@ -48,10 +48,10 @@ Simple HTML + Vanilla JS (if time permits)
 
 # Phase 2: Core Search Implementation (Hour 2)
 
-  # Goal:
+  ## Goal:
   - Multi-source product search working
 
-  # Tasks:
+  ## Tasks:
 
   1. Implement Google Shopping search via SerpAPI
   2. Add Amazon search integration
@@ -59,13 +59,13 @@ Simple HTML + Vanilla JS (if time permits)
   4. Basic data parsing and normalization
   5. Handle API errors and timeouts
   
-  # Deliverables:
+  ## Deliverables:
 
   - Working product search from multiple sources
   - Raw results aggregation
   - Error handling for API failures
   
-  # Success Criteria:
+  ## Success Criteria:
 
   curl -X POST http://localhost:8000/search \
     -H "Content-Type: application/json" \
@@ -74,10 +74,10 @@ Simple HTML + Vanilla JS (if time permits)
 
 # Phase 3: AI-Powered Enhancement (Hour 3)
 
-  # Goal:
+  ## Goal:
   - Accurate product matching and data extraction
 
-  # Tasks:
+  ## Tasks:
 
   1. Integrate OpenAI GPT-4 for product validation
   2. Implement intelligent price/currency extraction
@@ -85,89 +85,94 @@ Simple HTML + Vanilla JS (if time permits)
   4. Filter irrelevant/duplicate results
   5. Implement confidence scoring
   
-  # Deliverables:
+  ## Deliverables:
 
   - AI-validated product matches
   - Clean, structured output format
   - Duplicate removal logic
   
-  # Success Criteria:
+  ## Success Criteria:
 
   - Only relevant products returned
   - Accurate price extraction
   - Proper currency detection
 
-Phase 4: Global Coverage & Optimization (Hour 4)
-Goal: Country-specific optimization and performance
+# Phase 4: Global Coverage & Optimization (Hour 4)
 
-Tasks:
+  ## Goal:
+  - Country-specific optimization and performance
 
-Add country-specific website mapping
-Implement currency normalization
-Add local e-commerce sites per country
-Optimize for speed (parallel processing)
-Add comprehensive error handling
-Implement result ranking by price
-Deliverables:
+  ## Tasks:
+  
+  1. Add country-specific website mapping
+  2. Implement currency normalization
+  3. Add local e-commerce sites per country
+  4. Optimize for speed (parallel processing)
+  5. Add comprehensive error handling
+  6. Implement result ranking by price
 
-Country-specific search logic
-Multi-currency support
-Performance optimizations
-Robust error handling
-Success Criteria:
+  ## Deliverables:
 
-Works for US, IN, UK, and other major countries
-Results sorted by price
-Fast response times (<10 seconds)
-Phase 5: Deployment & Validation (Hour 5)
-Goal: Live hosted solution with proof of working
+  - Country-specific search logic
+  - Multi-currency support
+  - Performance optimizations
+  - Robust error handling
 
-Tasks:
+  ## Success Criteria:
 
-Deploy to Railway with environment variables
-Test both required examples thoroughly
-Create comprehensive README with curl examples
-Record proof-of-concept video/screenshots
-Create simple frontend (if time permits)
-Submit application
-Deliverables:
+  - Works for US, IN, UK, and other major countries
+  - Results sorted by price
+  - Fast response times (<10 seconds)
 
-Live hosted URL
-Working curl examples in README
-Proof of working for required queries
-Complete documentation
-Success Criteria:
+# Phase 5: Deployment & Validation (Hour 5)
+  
+  ## Goal:
+  - Live hosted solution with proof of working
 
-# Both test cases working
-curl -X POST "https://your-app.railway.app/search" \
-  -H "Content-Type: application/json" \
-  -d '{"country": "US", "query":"iPhone 16 Pro, 128GB"}'
+  ## Tasks:
 
-curl -X POST "https://your-app.railway.app/search" \
-  -H "Content-Type: application/json" \
-  -d '{"country": "IN", "query": "boAt Airdopes 311 Pro"}'
+  1. Deploy to Railway with environment variables
+  2. Test both required examples thoroughly
+  3. Create comprehensive README with curl examples
+  4. Record proof-of-concept video/screenshots
+  5. Create simple frontend (if time permits)
+  6. Submit application
+  
+  ## Deliverables:
 
-Copy
+  - Live hosted URL
+  - Working curl examples in README
+  - Proof of working for required queries
+  - Complete documentation
+  
+  ## Success Criteria:
 
-Execute
+  # Both test cases working
+  curl -X POST "https://your-app.railway.app/search" \
+    -H "Content-Type: application/json" \
+    -d '{"country": "US", "query":"iPhone 16 Pro, 128GB"}'
 
-🎯 Critical Success Factors
-Priority Order:
-Accuracy - AI validation ensures correct product matches
-Coverage - SerpAPI provides global reach
-Reliability - Robust error handling and fallbacks
-Speed - Async processing and optimization
-Risk Mitigation:
-API Limits: Monitor SerpAPI usage, implement caching
-AI Costs: Optimize prompts, batch processing
-Deployment Issues: Test early, use Docker
-Time Management: Focus on core functionality first
-Quality Assurance:
-Test with required examples after each phase
-Validate data accuracy continuously
-Monitor response times
-Document everything as you build
-This plan prioritizes getting a working solution deployed within 5 hours while meeting all evaluation criteria. The SerpAPI + AI combination gives you the best chance of building a production-ready tool quickly.
+  curl -X POST "https://your-app.railway.app/search" \
+    -H "Content-Type: application/json" \
+    -d '{"country": "IN", "query": "boAt Airdopes 311 Pro"}'
+
+  🎯 Critical Success Factors
+  Priority Order:
+  Accuracy - AI validation ensures correct product matches
+  Coverage - SerpAPI provides global reach
+  Reliability - Robust error handling and fallbacks
+  Speed - Async processing and optimization
+  Risk Mitigation:
+  API Limits: Monitor SerpAPI usage, implement caching
+  AI Costs: Optimize prompts, batch processing
+  Deployment Issues: Test early, use Docker
+  Time Management: Focus on core functionality first
+  Quality Assurance:
+  Test with required examples after each phase
+  Validate data accuracy continuously
+  Monitor response times
+  Document everything as you build
+  This plan prioritizes getting a working solution deployed within 5 hours while meeting all evaluation criteria. The SerpAPI + AI combination gives you the best chance of building a production-ready tool quickly.
 
 
 # PricePilot - Universal Product Price Comparison Tool

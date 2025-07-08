@@ -5,6 +5,7 @@ import time
 import logging
 from datetime import datetime
 from typing import List
+import os
 
 from app.models.product import (
     ProductQuery,
@@ -189,6 +190,11 @@ async def root():
             "countries": "/countries - Supported countries",
             "docs": "/docs - Interactive API documentation",
         },
+        "railway_info": {
+            "deployment_time": datetime.now().isoformat(),
+            "environment": os.getenv("ENVIRONMENT", "production"),
+            "port": os.getenv("PORT", "8000")
+        }
     }
 
 
@@ -647,7 +653,8 @@ async def get_search_stats(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+
 if __name__ == "__main__":
     import uvicorn
-
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
