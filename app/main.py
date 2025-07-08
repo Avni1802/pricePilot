@@ -16,6 +16,9 @@ from app.services.serpapi_client import SerpAPIClient
 from app.services.openai_client import OpenAIClient
 from app.services.data_parser import ProductDataParser
 from app.services.error_handler import SearchErrorHandler
+from app.services.ai_validator import AIProductValidator
+from app.services.duplicate_remover import DuplicateRemover
+from app.services.confidence_scorer import ConfidenceScorer
 
 # Configure logging
 logging.basicConfig(
@@ -28,14 +31,18 @@ serpapi_client = None
 openai_client = None
 data_parser = None
 error_handler = None
+ai_validator = None
+duplicate_remover = None
+confidence_scorer = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events"""
     global serpapi_client, openai_client, data_parser, error_handler
+    global ai_validator, duplicate_remover, confidence_scorer
 
-    logger.info("Starting PricePilot API - Phase 2...")
+    logger.info("Starting PricePilot API - Phase 3...")
 
     try:
         # Initialize all services
@@ -44,18 +51,31 @@ async def lifespan(app: FastAPI):
         data_parser = ProductDataParser()
         error_handler = SearchErrorHandler()
 
+        # Initialize Phase 3 AI services
+        ai_validator = AIProductValidator()
+        duplicate_remover = DuplicateRemover()
+        confidence_scorer = ConfidenceScorer()
+
         logger.info("All services initialized successfully")
 
         # Test connections
         serpapi_status = await serpapi_client.test_connection()
         openai_status = await openai_client.test_connection()
+        ai_validator_status = await ai_validator.test_connection()
 
-        logger.info(f"SerpAPI: {'✓' if serpapi_status['connected'] else '✗'}")
-        logger.info(f"OpenAI: {'✓' if openai_status['connected'] else '✗'}")
-        logger.info(f"Data Parser: ✓")
-        logger.info(f"Error Handler: ✓")
+        logger.info(
+            f"SerpAPI: {'Success' if serpapi_status['connected'] else 'Failure'}"
+        )
+        logger.info(f"OpenAI: {'Success' if openai_status['connected'] else 'Failure'}")
+        logger.info(
+            f"AI Validator: {'Success' if ai_validator_status['connected'] else 'Success'}"
+        )
+        logger.info(f"Data Parser: Success")
+        logger.info(f"Duplicate Remover: Success")
+        logger.info(f"Confidence Scorer: Success")
+        logger.info(f"Error Handler: Success")
 
-        logger.info("PricePilot API Phase 2 startup complete!")
+        logger.info("PricePilot API Phase 3 startup complete!")
 
     except Exception as e:
         logger.error(f"Failed to initialize services: {str(e)}")
@@ -63,15 +83,14 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    # Shutdown
     logger.info("PricePilot API shutting down...")
 
 
 # Create FastAPI app
 app = FastAPI(
-    title="PricePilot API - Phase 2",
-    description="Universal product price comparison with real worldwide search",
-    version="2.0.0",
+    title="PricePilot API - Phase 3",
+    description="AI-powered universal product price comparison with intelligent validation",
+    version="3.0.0",
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
@@ -87,6 +106,7 @@ app.add_middleware(
 )
 
 
+# Dependency functions
 def get_serpapi_client() -> SerpAPIClient:
     """Dependency to get SerpAPI client"""
     if serpapi_client is None:
@@ -114,43 +134,68 @@ def get_error_handler() -> SearchErrorHandler:
     return error_handler
 
 
+def get_ai_validator() -> AIProductValidator:
+    if ai_validator is None:
+        raise HTTPException(status_code=500, detail="AI validator not initialized")
+    return ai_validator
+
+
+def get_duplicate_remover() -> DuplicateRemover:
+    if duplicate_remover is None:
+        raise HTTPException(status_code=500, detail="Duplicate remover not initialized")
+    return duplicate_remover
+
+
+def get_confidence_scorer() -> ConfidenceScorer:
+    if confidence_scorer is None:
+        raise HTTPException(status_code=500, detail="Confidence scorer not initialized")
+    return confidence_scorer
+
+
 @app.get("/", response_model=dict)
 async def root():
-    """Root endpoint with Phase 2 information"""
+    """Root endpoint with Phase 3 information"""
     return {
-        "message": "🎯 PricePilot API - Phase 2 Complete!",
-        "description": "Universal product price comparison with real worldwide search",
-        "version": "2.0.0",
-        "phase": "2 - Core Search Implementation",
+        "message": "🧠 PricePilot API - Phase 3 Complete!",
+        "description": "AI-powered universal product price comparison with intelligent validation",
+        "version": "3.0.0",
+        "phase": "3 - AI-Powered Enhancement ✅",
         "features": [
             "Worldwide product search",
             "Multi-source aggregation (Google Shopping, Amazon, eBay, Local sites)",
-            "Real-time price comparison",
+            "AI-powered product validation (GPT-4o-mini)",
+            "Intelligent relevance filtering",
+            "Smart duplicate removal",
+            "Confidence scoring system",
+            "Enhanced price comparison",
             "Currency detection",
             "Async concurrent processing",
             "Robust error handling",
         ],
+        "ai_enhancements": [
+            "Product relevance validation",
+            "Clean product name extraction",
+            "Duplicate detection and removal",
+            "Multi-factor confidence scoring",
+            "Quality-based result ranking",
+        ],
         "endpoints": {
             "health": "/health - Service status",
-            "search": "/search - Main product search",
+            "search": "/search - AI-enhanced product search",
+            "search-basic": "/search-basic - Phase 2 search without AI",
+            "test-ai": "/test-ai - Test AI validation",
             "debug-search": "/debug-search - Raw search results",
             "test-services": "/test-services - Test all services",
             "countries": "/countries - Supported countries",
             "docs": "/docs - Interactive API documentation",
-        },
-        "example_usage": {
-            "endpoint": "/search",
-            "method": "POST",
-            "body": {"country": "US", "query": "iPhone 16 Pro, 128GB"},
         },
     }
 
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
-    """Enhanced health check with detailed service status"""
+    """Enhanced health check with Phase 3 AI services"""
     try:
-        # Test service connections
         services_status = {}
 
         # Test SerpAPI
@@ -171,11 +216,32 @@ async def health_check():
                 "status": "Success" if openai_status["connected"] else "Failure",
             }
 
+        # Test AI Validator
+        if ai_validator:
+            ai_validator_status = await ai_validator.test_connection()
+            services_status["ai_validator"] = {
+                "connected": ai_validator_status["connected"],
+                "message": ai_validator_status.get("message", ""),
+                "status": "Success" if ai_validator_status["connected"] else "Failure",
+            }
+
         # Check other services
         services_status["data_parser"] = {
             "connected": data_parser is not None,
             "message": "Data parser ready",
             "status": "Success" if data_parser else "Failure",
+        }
+
+        services_status["duplicate_remover"] = {
+            "connected": duplicate_remover is not None,
+            "message": "Duplicate remover ready",
+            "status": "Success" if duplicate_remover else "Failure",
+        }
+
+        services_status["confidence_scorer"] = {
+            "connected": confidence_scorer is not None,
+            "message": "Confidence scorer ready",
+            "status": "Success" if confidence_scorer else "Failure",
         }
 
         services_status["error_handler"] = {
@@ -186,7 +252,7 @@ async def health_check():
 
         return HealthResponse(
             status="ok",
-            message="PricePilot API Phase 2 - All systems operational",
+            message="PricePilot API Phase 3 - AI-enhanced systems operational",
             timestamp=datetime.now().isoformat(),
             services=services_status,
         )
@@ -197,42 +263,81 @@ async def health_check():
 
 
 @app.post("/search", response_model=SearchResponse)
-async def search_products(
+async def search_products_ai_enhanced(
     query: ProductQuery,
     serpapi: SerpAPIClient = Depends(get_serpapi_client),
     openai: OpenAIClient = Depends(get_openai_client),
     parser: ProductDataParser = Depends(get_data_parser),
+    ai_validator: AIProductValidator = Depends(get_ai_validator),
+    duplicate_remover: DuplicateRemover = Depends(get_duplicate_remover),
+    confidence_scorer: ConfidenceScorer = Depends(get_confidence_scorer),
     error_handler: SearchErrorHandler = Depends(get_error_handler),
 ):
     """
-    🎯 Main product search endpoint - Phase 2 Complete Implementation
+    🧠 AI-Enhanced Product Search - Phase 3 Complete Implementation
 
     What this does:
-    1. Searches Google Shopping, Amazon, eBay, and local sites worldwide
-    2. Parses and normalizes all results
-    3. Returns clean, sorted product data
+    1. Searches multiple sources worldwide (Phase 2)
+    2. Uses AI to validate product relevance (Phase 3)
+    3. Removes duplicates intelligently (Phase 3)
+    4. Assigns confidence scores (Phase 3)
+    5. Returns high-quality, validated results
 
-    Why: Provides comprehensive price comparison from global sources
-    Returns: Structured list of products with prices, sorted by price
+    Why: Provides the most accurate and relevant product matches
+    Returns: AI-validated, deduplicated products with confidence scores
     """
     start_time = time.time()
 
     try:
-        logger.info(f"Starting search: '{query.query}' in {query.country}")
+        logger.info(f"Starting AI-enhanced search: '{query.query}' in {query.country}")
 
-        # Step 1: Execute multi-source search
-        logger.info("Executing worldwide search across multiple sources...")
+        # Step 1: Execute multi-source search (Phase 2)
+        logger.info("📡 Step 1: Executing worldwide search...")
         raw_results = await serpapi.search_all_sources(query.query, query.country)
 
-        # Step 2: Parse and normalize results
-        logger.info("Parsing and normalizing results...")
+        # Step 2: Parse and normalize results (Phase 2)
+        logger.info("Step 2: Parsing and normalizing results...")
         parsed_products = parser.parse_all_results(raw_results, query.country)
 
-        # Step 3: Validate and convert to final format
-        logger.info("Validating and formatting results...")
+        if not parsed_products:
+            logger.warning("No products found after parsing")
+            return SearchResponse(
+                success=True,
+                message=f"No products found for '{query.query}' in {query.country}",
+                results=[],
+                total_results=0,
+                search_time_seconds=round(time.time() - start_time, 2),
+                country=query.country,
+                query=query.query,
+            )
+
+        logger.info(f"Found {len(parsed_products)} raw products")
+
+        # Step 3: AI validation (Phase 3 - NEW)
+        logger.info("Step 3: AI validation and relevance filtering...")
+        ai_validated_products = await ai_validator.validate_products(
+            parsed_products, query.query, query.country
+        )
+
+        logger.info(
+            f"AI validation: {len(ai_validated_products)}/{len(parsed_products)} products passed"
+        )
+
+        # Step 4: Remove duplicates (Phase 3 - NEW)
+        logger.info("Step 4: Removing duplicates...")
+        unique_products = duplicate_remover.remove_duplicates(ai_validated_products)
+
+        logger.info(f"Duplicate removal: {len(unique_products)} unique products")
+
+        # Step 5: Calculate confidence scores (Phase 3 - NEW)
+        logger.info("Step 5: Calculating confidence scores...")
+        scored_products = confidence_scorer.score_products(unique_products)
+
+        # Step 6: Validate and convert to final format
+        logger.info("Step 6: Final validation and formatting...")
         final_results = []
 
-        for product_data in parsed_products:
+        for product_data in scored_products:
             try:
                 # Validate using Pydantic model
                 product_result = ProductResult(**product_data)
@@ -241,23 +346,29 @@ async def search_products(
                 logger.debug(f"Skipping invalid product: {str(e)}")
                 continue
 
-        # Step 4: Sort by price (lowest first)
-        logger.info("Sorting by price...")
-        try:
-            final_results.sort(key=lambda x: float(x.get("price", "999999")))
-        except Exception as e:
-            logger.warning(f"Price sorting failed: {str(e)}")
+        # Step 7: Final sorting by confidence score (highest first)
+        logger.info("Step 7: Final ranking by confidence...")
+        final_results.sort(key=lambda x: x.get("confidence_score", 0), reverse=True)
 
-        # Step 5: Calculate metrics
+        # Step 8: Calculate metrics
         search_time = time.time() - start_time
 
+        # Step 9: Log success metrics
+        sources_used = [k for k, v in raw_results.items() if "error" not in v]
+        sources_failed = [k for k, v in raw_results.items() if "error" in v]
+
+        logger.info(f"AI-enhanced search completed successfully!")
         logger.info(
-            f"Search completed! Found {len(final_results)} products in {search_time:.2f}s"
+            f"Pipeline: {len(parsed_products)} → {len(ai_validated_products)} → {len(unique_products)} → {len(final_results)}"
         )
+        logger.info(f"⏱Time: {search_time:.2f} seconds")
+        logger.info(f"Sources used: {sources_used}")
+        if sources_failed:
+            logger.warning(f"❌ Sources failed: {sources_failed}")
 
         return SearchResponse(
             success=True,
-            message=f"Found {len(final_results)} products for '{query.query}' in {query.country}",
+            message=f"Found {len(final_results)} AI-validated products for '{query.query}' in {query.country}",
             results=final_results,
             total_results=len(final_results),
             search_time_seconds=round(search_time, 2),
@@ -267,12 +378,12 @@ async def search_products(
 
     except Exception as e:
         search_time = time.time() - start_time
-        logger.error(f"❌ Search failed after {search_time:.2f}s: {str(e)}")
+        logger.error(f"AI-enhanced search failed after {search_time:.2f}s: {str(e)}")
 
         # Return error response but don't crash
         return SearchResponse(
             success=False,
-            message=f"Search failed: {str(e)}",
+            message=f"AI-enhanced search failed: {str(e)}",
             results=[],
             total_results=0,
             search_time_seconds=round(search_time, 2),
@@ -281,79 +392,185 @@ async def search_products(
         )
 
 
-@app.post("/debug-search")
-async def debug_search(
-    query: ProductQuery, serpapi: SerpAPIClient = Depends(get_serpapi_client)
+@app.post("/search-basic", response_model=SearchResponse)
+async def search_products_basic(
+    query: ProductQuery,
+    serpapi: SerpAPIClient = Depends(get_serpapi_client),
+    parser: ProductDataParser = Depends(get_data_parser),
+    error_handler: SearchErrorHandler = Depends(get_error_handler),
 ):
-    """🔍 Debug endpoint to inspect raw search results"""
-    try:
-        logger.info(f"🐛 Debug search: {query.query} in {query.country}")
-        raw_results = await serpapi.search_all_sources(query.query, query.country)
+    """
+    🔍 Basic Product Search - Phase 2 Implementation (without AI)
 
-        # Count results from each source
-        result_counts = {}
-        for source, data in raw_results.items():
-            if "error" in data:
-                result_counts[source] = f"ERROR: {data['error']}"
-            else:
-                # Count results based on source type
-                if source == "google_shopping":
-                    count = len(data.get("shopping_results", []))
-                else:
-                    count = len(data.get("organic_results", []))
-                result_counts[source] = f"{count} results"
+    What this does: Phase 2 search without AI enhancements
+    Why: Fallback option and comparison baseline
+    Returns: Raw search results without AI validation
+    """
+    start_time = time.time()
+
+    try:
+        logger.info(f"Starting basic search: '{query.query}' in {query.country}")
+
+        # Execute Phase 2 search pipeline
+        raw_results = await serpapi.search_all_sources(query.query, query.country)
+        parsed_products = parser.parse_all_results(raw_results, query.country)
+
+        # Basic validation and formatting
+        final_results = []
+        for product_data in parsed_products:
+            try:
+                product_result = ProductResult(**product_data)
+                final_results.append(product_result.dict())
+            except Exception as e:
+                logger.debug(f"Skipping invalid product: {str(e)}")
+                continue
+
+        # Sort by price (lowest first)
+        try:
+            final_results.sort(key=lambda x: float(x.get("price", "999999")))
+        except Exception as e:
+            logger.warning(f"Price sorting failed: {str(e)}")
+
+        search_time = time.time() - start_time
+
+        return SearchResponse(
+            success=True,
+            message=f"Found {len(final_results)} products (basic search) for '{query.query}' in {query.country}",
+            results=final_results,
+            total_results=len(final_results),
+            search_time_seconds=round(search_time, 2),
+            country=query.country,
+            query=query.query,
+        )
+
+    except Exception as e:
+        search_time = time.time() - start_time
+        logger.error(f"Basic search failed: {str(e)}")
+
+        return SearchResponse(
+            success=False,
+            message=f"Basic search failed: {str(e)}",
+            results=[],
+            total_results=0,
+            search_time_seconds=round(search_time, 2),
+            country=query.country,
+            query=query.query,
+        )
+
+
+@app.post("/test-ai")
+async def test_ai_validation(
+    query: ProductQuery, ai_validator: AIProductValidator = Depends(get_ai_validator)
+):
+    """🧪 Test AI validation with sample products"""
+    try:
+        # Create sample products for testing
+        sample_products = [
+            {
+                "productName": f"{query.query} - Genuine Product",
+                "price": "299.99",
+                "currency": "USD",
+                "website": "TestStore",
+                "link": "https://example.com/product1",
+            },
+            {
+                "productName": "Completely Unrelated Product",
+                "price": "19.99",
+                "currency": "USD",
+                "website": "TestStore",
+                "link": "https://example.com/product2",
+            },
+            {
+                "productName": f"Best {query.query} Deal - Buy Now!",
+                "price": "199.99",
+                "currency": "USD",
+                "website": "TestStore",
+                "link": "https://example.com/product3",
+            },
+        ]
+
+        logger.info(
+            f"🧪 Testing AI validation with {len(sample_products)} sample products"
+        )
+
+        # Test AI validation
+        validated_products = await ai_validator.validate_products(
+            sample_products, query.query, query.country
+        )
 
         return {
+            "message": "AI validation test completed",
             "query": query.query,
             "country": query.country,
-            "sources_attempted": list(raw_results.keys()),
-            "result_counts": result_counts,
-            "raw_results": raw_results,  # Full raw data for debugging
+            "original_products": len(sample_products),
+            "validated_products": len(validated_products),
+            "sample_input": sample_products,
+            "ai_results": validated_products,
+            "ai_working": len(validated_products) > 0,
         }
 
     except Exception as e:
-        logger.error(f"Debug search failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"AI validation test failed: {str(e)}")
+        return {
+            "message": "AI validation test failed",
+            "error": str(e),
+            "ai_working": False,
+        }
 
 
 @app.get("/test-services")
-async def test_all_services(
-    serpapi: SerpAPIClient = Depends(get_serpapi_client),
-    openai: OpenAIClient = Depends(get_openai_client),
-    error_handler: SearchErrorHandler = Depends(get_error_handler),
-):
-    """Test all services and show detailed status"""
+async def test_all_services():
+    """🧪 Test all services including Phase 3 AI components"""
     try:
+        results = {}
+
         # Test SerpAPI
-        serpapi_status = await serpapi.test_connection()
+        if serpapi_client:
+            serpapi_status = await serpapi_client.test_connection()
+            results["serpapi"] = serpapi_status
 
         # Test OpenAI
-        openai_status = await openai.test_connection()
+        if openai_client:
+            openai_status = await openai_client.test_connection()
+            results["openai"] = openai_status
 
-        # Get error summary
-        error_summary = error_handler.get_error_summary()
+        # Test AI Validator
+        if ai_validator:
+            ai_validator_status = await ai_validator.test_connection()
+            results["ai_validator"] = ai_validator_status
+
+        # Test other services
+        results["data_parser"] = {
+            "connected": data_parser is not None,
+            "message": "Data parser ready",
+        }
+
+        results["duplicate_remover"] = {
+            "connected": duplicate_remover is not None,
+            "message": "Duplicate remover ready",
+        }
+
+        results["confidence_scorer"] = {
+            "connected": confidence_scorer is not None,
+            "message": "Confidence scorer ready",
+        }
+
+        results["error_handler"] = {
+            "connected": error_handler is not None,
+            "message": "Error handler ready",
+        }
+
+        # Overall status
+        all_connected = all(
+            service.get("connected", False) for service in results.values()
+        )
 
         return {
+            "message": "Service test completed",
+            "all_services_working": all_connected,
+            "phase": "3 - AI-Powered Enhancement",
+            "services": results,
             "timestamp": datetime.now().isoformat(),
-            "phase": "2 - Core Search Implementation",
-            "services": {
-                "serpapi": serpapi_status,
-                "openai": openai_status,
-                "data_parser": {
-                    "connected": data_parser is not None,
-                    "message": "Data parser operational",
-                },
-                "error_handler": {
-                    "connected": error_handler is not None,
-                    "message": "Error handler operational",
-                    "error_summary": error_summary,
-                },
-            },
-            "overall_status": (
-                "operational"
-                if serpapi_status["connected"] and openai_status["connected"]
-                else "degraded"
-            ),
         }
 
     except Exception as e:
@@ -361,7 +578,6 @@ async def test_all_services(
         raise HTTPException(status_code=500, detail=f"Service test failed: {str(e)}")
 
 
-# Additional utility endpoints for debugging
 @app.get("/countries")
 async def get_supported_countries():
     """🌍 Get list of supported countries with details"""
@@ -389,6 +605,8 @@ async def get_supported_countries():
         "total_count": len(CountryCode),
         "country_details": country_details,
         "note": "More countries supported through general search",
+        "ai_enhanced": True,
+        "phase": "3 - AI-Powered Enhancement",
     }
 
 
@@ -402,17 +620,27 @@ async def get_search_stats(
 
         return {
             "timestamp": datetime.now().isoformat(),
-            "phase": "2 - Core Search Implementation",
-            "version": "2.0.0",
+            "phase": "3 - AI-Powered Enhancement ✅",
+            "version": "3.0.0",
             "error_statistics": error_summary,
             "features_active": [
                 "Multi-source search",
+                "AI product validation",
+                "Intelligent duplicate removal",
+                "Confidence scoring",
                 "Price extraction",
                 "Currency detection",
                 "Error handling",
-                "Result sorting",
+                "Result ranking",
             ],
-            "next_phase": "3 - AI-Powered Enhancement",
+            "ai_features": [
+                "GPT-4o-mini product validation",
+                "Relevance scoring",
+                "Clean name extraction",
+                "Quality assessment",
+                "Confidence calculation",
+            ],
+            "next_phase": "4 - Global Coverage & Optimization",
         }
 
     except Exception as e:

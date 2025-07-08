@@ -22,14 +22,14 @@ class SerpAPIClient:
         # Simplified and working domain mapping
         self.amazon_domains = {
             "US": "amazon.com",
-            "IN": "amazon.in", 
+            "IN": "amazon.in",
             "UK": "amazon.co.uk",
             "CA": "amazon.ca",
             "AU": "amazon.com.au",
             "DE": "amazon.de",
             "FR": "amazon.fr",
             "IT": "amazon.it",
-            "ES": "amazon.es"
+            "ES": "amazon.es",
         }
 
         # Simplified local sites for Google search
@@ -42,19 +42,19 @@ class SerpAPIClient:
             "DE": ["otto.de", "mediamarkt.de"],
             "FR": ["fnac.com", "darty.com"],
             "IT": ["eprice.it", "unieuro.it"],
-            "ES": ["elcorteingles.es", "mediamarkt.es"]
+            "ES": ["elcorteingles.es", "mediamarkt.es"],
         }
 
         # eBay domain mapping (simplified)
         self.ebay_domains = {
             "US": "ebay.com",
-            "UK": "ebay.co.uk", 
+            "UK": "ebay.co.uk",
             "CA": "ebay.ca",
             "AU": "ebay.com.au",
             "DE": "ebay.de",
             "FR": "ebay.fr",
             "IT": "ebay.it",
-            "ES": "ebay.es"
+            "ES": "ebay.es",
         }
 
     async def search_all_sources(self, query: str, country: str) -> Dict[str, Dict]:
@@ -73,9 +73,7 @@ class SerpAPIClient:
 
         # 2. Amazon (only if domain exists and with correct parameters)
         if country in self.amazon_domains:
-            search_tasks.append(
-                ("amazon", self.search_amazon_fixed(query, country))
-            )
+            search_tasks.append(("amazon", self.search_amazon_fixed(query, country)))
 
         # 3. Google general search (simplified)
         search_tasks.append(
@@ -84,9 +82,7 @@ class SerpAPIClient:
 
         # 4. eBay (with correct parameters)
         if country in self.ebay_domains:
-            search_tasks.append(
-                ("ebay", self.search_ebay_fixed(query, country))
-            )
+            search_tasks.append(("ebay", self.search_ebay_fixed(query, country)))
 
         # Execute searches with individual error handling
         results = {}
@@ -104,7 +100,9 @@ class SerpAPIClient:
                 logger.error(f"{search_name} search failed: {str(e)}")
                 results[search_name] = {"error": str(e)}
 
-        logger.info(f"Search completed. Working sources: {[k for k, v in results.items() if 'error' not in v]}")
+        logger.info(
+            f"Search completed. Working sources: {[k for k, v in results.items() if 'error' not in v]}"
+        )
         return results
 
     async def search_google_shopping(self, query: str, country: str) -> Dict:
@@ -116,7 +114,7 @@ class SerpAPIClient:
                 "gl": country.lower(),
                 "hl": "en",
                 "api_key": self.api_key,
-                "num": 20
+                "num": 20,
             }
 
             logger.info(f"Google Shopping: {query} in {country}")
@@ -129,7 +127,7 @@ class SerpAPIClient:
                 logger.error(f"Google Shopping API error: {result['error']}")
                 return {"error": result["error"]}
 
-            shopping_results = result.get('shopping_results', [])
+            shopping_results = result.get("shopping_results", [])
             logger.info(f"Google Shopping: Found {len(shopping_results)} products")
 
             return result
@@ -148,7 +146,7 @@ class SerpAPIClient:
                 "engine": "amazon",
                 "amazon_domain": domain,
                 "k": query,  # FIXED: Amazon uses 'k' parameter, not 'q'
-                "api_key": self.api_key
+                "api_key": self.api_key,
             }
 
             logger.info(f"Amazon: {query} on {domain}")
@@ -162,11 +160,11 @@ class SerpAPIClient:
                 return {"error": result["error"]}
 
             # Check for results in different possible fields
-            organic_results = result.get('organic_results', [])
-            products = result.get('products', [])  # Sometimes Amazon returns 'products'
+            organic_results = result.get("organic_results", [])
+            products = result.get("products", [])  # Sometimes Amazon returns 'products'
 
             if not organic_results and products:
-                result['organic_results'] = products
+                result["organic_results"] = products
                 organic_results = products
 
             logger.info(f"Amazon: Found {len(organic_results)} products")
@@ -188,7 +186,7 @@ class SerpAPIClient:
                 "gl": country.lower(),
                 "hl": "en",
                 "api_key": self.api_key,
-                "num": 10  # Fewer results to avoid issues
+                "num": 10,  # Fewer results to avoid issues
             }
 
             logger.info(f"Google general: {enhanced_query}")
@@ -201,7 +199,7 @@ class SerpAPIClient:
                 logger.error(f"Google general API error: {result['error']}")
                 return {"error": result["error"]}
 
-            organic_results = result.get('organic_results', [])
+            organic_results = result.get("organic_results", [])
             logger.info(f"Google general: Found {len(organic_results)} results")
 
             return result
@@ -220,7 +218,7 @@ class SerpAPIClient:
                 "engine": "ebay",
                 "ebay_domain": domain,
                 "_nkw": query,  # FIXED: eBay uses '_nkw' parameter, not 'q'
-                "api_key": self.api_key
+                "api_key": self.api_key,
             }
 
             logger.info(f"eBay: {query} on {domain}")
@@ -233,7 +231,7 @@ class SerpAPIClient:
                 logger.error(f"eBay API error: {result['error']}")
                 return {"error": result["error"]}
 
-            organic_results = result.get('organic_results', [])
+            organic_results = result.get("organic_results", [])
             logger.info(f"eBay: Found {len(organic_results)} products")
 
             return result
@@ -249,7 +247,7 @@ class SerpAPIClient:
                 "engine": "google",
                 "q": "test",
                 "api_key": self.api_key,
-                "num": 1
+                "num": 1,
             }
 
             loop = asyncio.get_event_loop()
@@ -260,18 +258,15 @@ class SerpAPIClient:
                 return {
                     "connected": False,
                     "error": result["error"],
-                    "message": "SerpAPI connection failed"
+                    "message": "SerpAPI connection failed",
                 }
 
-            return {
-                "connected": True,
-                "message": "SerpAPI connection successful"
-            }
+            return {"connected": True, "message": "SerpAPI connection successful"}
 
         except Exception as e:
             logger.error(f"SerpAPI connection test failed: {str(e)}")
             return {
                 "connected": False,
                 "error": str(e),
-                "message": "SerpAPI connection test failed"
+                "message": "SerpAPI connection test failed",
             }

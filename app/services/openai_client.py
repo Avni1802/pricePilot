@@ -1,64 +1,74 @@
 import os
+import logging
+from typing import Dict
 from openai import AsyncOpenAI
 from dotenv import load_dotenv
-import logging
-import json
-from typing import Dict, List, Optional
 
 load_dotenv()
-
 logger = logging.getLogger(__name__)
 
+
 class OpenAIClient:
-    """Client for interacting with OpenAI GPT-4o-mini"""
-    
+    """
+    OpenAI client for general AI operations
+
+    What this does: Provides a general OpenAI client for various AI tasks
+    Why: Centralized OpenAI configuration and connection management
+    How: Wraps the OpenAI API with error handling and testing
+    """
+
     def __init__(self):
         self.api_key = os.getenv("OPENAI_API_KEY")
         if not self.api_key:
             raise ValueError("OPENAI_API_KEY environment variable is required")
-        
+
         self.client = AsyncOpenAI(api_key=self.api_key)
-        self.model = "gpt-4o-mini"  # Using the cost-effective model
-    
+        self.model = "gpt-4o-mini"
+
     async def test_connection(self) -> Dict:
-        """Test OpenAI connection"""
+        """Test OpenAI API connection"""
         try:
             response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=[
-                    {"role": "user", "content": "Hello, this is a connection test. Please respond with 'Connection successful'."}
+                    {
+                        "role": "user",
+                        "content": "Hello, respond with just 'OK' if you can hear me.",
+                    }
                 ],
-                max_tokens=10
+                max_tokens=10,
+                temperature=0,
             )
-            
-            if response.choices and response.choices[0].message:
-                return {
-                    "connected": True,
-                    "message": "OpenAI connection successful",
-                    "model": self.model,
-                    "response": response.choices[0].message.content
-                }
-            else:
-                return {
-                    "connected": False,
-                    "message": "OpenAI connection failed - no response"
-                }
-                
+
+            response_text = response.choices[0].message.content.strip()
+
+            return {
+                "connected": True,
+                "message": "OpenAI connection successful",
+                "model": self.model,
+                "test_response": response_text,
+            }
+
         except Exception as e:
             logger.error(f"OpenAI connection test failed: {str(e)}")
             return {
                 "connected": False,
                 "error": str(e),
-                "message": "OpenAI connection test failed"
+                "message": "OpenAI connection failed",
             }
-    
-    async def validate_products(self, raw_results: List[Dict], original_query: str) -> List[Dict]:
-        """Use GPT-4o-mini to validate and enhance product matches"""
+
+    async def generate_completion(self, prompt: str, max_tokens: int = 100) -> str:
+        """Generate a completion for a given prompt"""
         try:
-            # We'll implement this in Phase 3
-            # For now, just return empty list
-            return []
-            
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=max_tokens,
+                temperature=0.1,
+            )
+
+            return response.choices[0].message.content.strip()
+
         except Exception as e:
-            logger.error(f"Product validation failed: {str(e)}")
-            return []
+            logger.error(f"OpenAI completion failed: {str(e)}")
+            raise e
