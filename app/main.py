@@ -1,5 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi import Request
 from contextlib import asynccontextmanager
 import time
 import logging
@@ -44,6 +46,15 @@ async def lifespan(app: FastAPI):
     global ai_validator, duplicate_remover, confidence_scorer
 
     logger.info("Starting PricePilot API - Phase 3...")
+    openai_key = os.getenv("OPENAI_API_KEY")
+    serpapi_key = os.getenv("SERPAPI_KEY")
+
+
+    if not openai_key or not serpapi_key:
+        logger.error(
+            f"Missing required API keys: OPENAI_API_KEY={openai_key}, SERPAPI_KEY={serpapi_key}"
+        )
+        raise RuntimeError("Missing required environment variables for initialization.")
 
     try:
         # Initialize all services
@@ -153,6 +164,15 @@ def get_confidence_scorer() -> ConfidenceScorer:
     return confidence_scorer
 
 
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.exception(f"Unhandled exception: {exc}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": str(exc)},
+    )
+
+
 @app.get("/", response_model=dict)
 async def root():
     """Root endpoint with Phase 3 information"""
@@ -193,8 +213,8 @@ async def root():
         "railway_info": {
             "deployment_time": datetime.now().isoformat(),
             "environment": os.getenv("ENVIRONMENT", "production"),
-            "port": os.getenv("PORT", "8000")
-        }
+            "port": os.getenv("PORT", "8000"),
+        },
     }
 
 
@@ -653,8 +673,8 @@ async def get_search_stats(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
 if __name__ == "__main__":
     import uvicorn
+
     port = int(os.getenv("PORT", 8000))
     uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
